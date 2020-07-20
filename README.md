@@ -16,11 +16,27 @@ $ cd vidsum/code
 
 ```
 Please note that vidsum requires the following packages to be installed:
-- [pysrt](https://github.com/byroot/pysrt)
-- [imageio](https://imageio.github.io/)
-- [moviepy](https://zulko.github.io/moviepy/)
-- [pytube](https://github.com/nficano/pytube)
-- [sumy](https://github.com/miso-belica/sumy)
+
+- certifi
+- chardet
+- decorator
+- docopt
+- idna
+- imageio
+- lxml
+- moviepy
+- nltk
+- numpy
+- olefile
+- Pillow
+- pysrt
+- pytube
+- requests
+- six
+- sumysion)
+- tqdm
+- urllib3
+- youtube-dl
 
 If you do not have these packages installed, then you can do so by running this command:
 ```sh
