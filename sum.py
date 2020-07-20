@@ -1,59 +1,62 @@
 from __future__ import unicode_literals
 import argparse
 import os
+from gtts import gTTS
 import re
 from itertools import starmap
 import multiprocessing
 import pysrt
 import imageio
 import youtube_dl
-import random
 import chardet
 import nltk
 imageio.plugins.ffmpeg.download()
 nltk.download('punkt')
+import moviepy as mp
 from moviepy.editor import VideoFileClip, concatenate_videoclips
 from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.nlp.stemmers import Stemmer
 from sumy.utils import get_stop_words
 from sumy.summarizers.lsa import LsaSummarizer
+from pydub import AudioSegment
 imageio.plugins.ffmpeg.download()
 
-def summarize(srt_file, n_sentences, language="english"):
-    """ Generate segmented summary
+class SoundAlter:
+    def __init__(self, sound_path):
+        self.sound_path = sound_path
+        self.sound = AudioSegment.from_file(self.sound_path)
 
-    Args:
-        srt_file(str) : The name of the SRT FILE
-        n_sentences(int): No of sentences
-        language(str) : Language of subtitles (default to English)
+    def speed_change(self, speed=1.0): #Alter Speed of Speech
 
-    Returns:
-        list: segment of subtitles
+        sound_with_altered_frame_rate = self.sound._spawn(self.sound.raw_data, overrides={
+            "frame_rate": int(self.sound.frame_rate * speed)
+        })
+        
 
-    """
+        return sound_with_altered_frame_rate.set_frame_rate(self.sound.frame_rate)
+
+def summarize(srt_file, n_sentences, language="english"): #Summarizes Text file using LSA Summarization
+    
     parser = PlaintextParser.from_string(srt_to_txt(srt_file), Tokenizer(language))
     stemmer = Stemmer(language)
     summarizer = LsaSummarizer(stemmer)
+    
     summarizer.stop_words = get_stop_words(language)
     segment = []
+    f= open("xd.txt","w+")
+    fo= open("dx.txt","w+")
+
     for sentence in summarizer(parser.document, n_sentences):
+        f.write(str(sentence))
+        f.write('\n')       
         index = int(re.findall("\(([0-9]+)\)", str(sentence))[0])
         item = srt_file[index]
-        segment.append(srt_segment_to_range(item))
+        segment.append(srt_segment_to_range(item))   
     return segment
 
 
-def srt_to_txt(srt_file):
-    """ Extract text from subtitles file
-
-    Args:
-        srt_file(str): The name of the SRT FILE
-
-    Returns:
-        str: extracted text from subtitles file
-
-    """
+def srt_to_txt(srt_file): #Extract text from subtitles file
     text = ''
     for index, item in enumerate(srt_file):
         if item.text.startswith("["):
@@ -65,17 +68,8 @@ def srt_to_txt(srt_file):
     return text
 
 
-def srt_segment_to_range(item):
-    """ Handling of srt segments to time range
+def srt_segment_to_range(item): #Handling of srt segments to time range
 
-    Args:
-        item():
-
-    Returns:
-        int: starting segment
-        int: ending segment of srt
-
-    """
     start_segment = item.start.hours * 60 * 60 + item.start.minutes * \
         60 + item.start.seconds + item.start.milliseconds / 1000.0
     end_segment = item.end.hours * 60 * 60 + item.end.minutes * \
@@ -83,31 +77,13 @@ def srt_segment_to_range(item):
     return start_segment, end_segment
 
 
-def time_regions(regions):
-    """ Duration of segments
+def time_regions(regions): # Finds out duration of segments
 
-    Args:
-        regions():
-
-    Returns:
-        float: duration of segments
-
-    """
     return sum(starmap(lambda start, end: end - start, regions))
 
 
-def find_summary_regions(srt_filename, duration=30, language="english"):
-    """ Find important sections
+def find_summary_regions(srt_filename, duration=30, language="english"): #Find important sections using subtitles
 
-    Args:
-        srt_filename(str): Name of the SRT FILE
-        duration(int): Time duration
-        language(str): Language of subtitles (default to English)
-
-    Returns:
-        list: segment of subtitles as "summary"
-
-    """
     print(srt_filename)
     srt_file = pysrt.open(srt_filename)
 
@@ -132,67 +108,69 @@ def find_summary_regions(srt_filename, duration=30, language="english"):
             n_sentences -= 1
             summary = summarize(srt_file, n_sentences, language)
             total_time = time_regions(summary)
+   # print(summary)
+    with open("xd.txt", "r") as file:
+        fo = open("dx.txt", "w+")
+        for line in file:
+            fo.write(re.sub(r"/\([^\)\(]*\)/", "", line))
     return summary
 
+def _clean(): #Preproccessing Part 1 : Removal of repeated and redundant data
+    print("Summarizing subtitles")
+    print("Cleaning and parsing in process")
+    with open("dx.txt", "r") as file:
+        f = open("cleaned.txt", "w+")
+        for line in file:
+            f.write(re.sub("\([^()]*\) ", "", line))
 
-def create_summary(filename, regions):
-    """ Join segments
-
-    Args:
-        filename(str): filename
-        regions():
-    Returns:
-        VideoFileClip: joined subclips in segment
-
-    """
+def _clean2(): #Preprocessing Part 2 : Separating text 
+    print("Summarizing of text file in progress")
+    with open("cleaned.txt", "r") as file:
+        f = open("cleaned_FINAL.txt", "w+")
+        for line in file:
+            print(re.sub("<[^>]+>", "", line))
+            f.write(re.sub("<[^>]+>", "", line))
+    print("Summarizing done!")
+def create_summary(filename, regions): #Appending Segments
     subclips = []
     input_video = VideoFileClip(filename)
     last_end = 0
     for (start, end) in regions:
         subclip = input_video.subclip(start, end)
+      #  subclip = subclip.set_audio('1.mp3')
         subclips.append(subclip)
         last_end = end
     return concatenate_videoclips(subclips)
 
 
-def get_summary(filename="1.mp4", subtitles="1.srt"):
-    """ Abstract function
-
-    Args:
-        filename(str): Name of the Video file (defaults to "1.mp4")
-        subtitles(str): Name of the subtitle file (defaults to "1.srt")
-
-    Returns:
-        True
-
-    """
-    nt=random.randint(60,500)
-    regions = find_summary_regions(subtitles,nt, "english")
+def get_summary(filename="1.mp4", subtitles="1.srt"): #Final Summary video and gtts implementation
+    
+    language = 'en'
+    regions = find_summary_regions(subtitles, 420, "english")
+    
     summary = create_summary(filename, regions)
+    #print(summary)
+    _clean()
+    _clean2()
+    file=open("cleaned_FINAL.txt","r+")
+
+    file_text = file.read()  
+
+    myobj = gTTS(text=file_text, lang=language, slow=False) 
+  
+    myobj.save("output1.mp3") 
+    alter = SoundAlter("output1.mp3")
+    alter.speed_change(1.25).export("output.mp3", format="mp3")
     base, ext = os.path.splitext(filename)
-    output = "{0}_1.mp4".format(base)
+    output = "{0}_summarised.mp4".format(base)
     summary.to_videofile(
                 output,
-                codec="libx264",
-                temp_audiofile="temp.m4a", remove_temp=True, audio_codec="aac")
+               audio='output.mp3')
     return True
 
 
-def download_video_srt(subs):
-    """ Downloads specified Youtube video's subtitles as a vtt/srt file.
-
-    Args:
-        subs(str): Full url of Youtube video
-
-    Returns:
-        True
-
-
-    The video will be downloaded as 1.mp4 and its subtitles as 1.(lang).srt
-    Both, the video and its subtitles, will be downloaded to the same location
-    as that of this script (sum.py)
-
-    """
+def download_video_srt(subs): #Downloading video using youtube-dl
+    
     ydl_opts = {
         'format': 'best',
         'outtmpl': '1.%(ext)s',
