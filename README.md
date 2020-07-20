@@ -33,7 +33,7 @@ Please note that vidsum requires the following packages to be installed:
 - pytube
 - requests
 - six
-- sumysion)
+- sumy
 - tqdm
 - urllib3
 - youtube-dl
